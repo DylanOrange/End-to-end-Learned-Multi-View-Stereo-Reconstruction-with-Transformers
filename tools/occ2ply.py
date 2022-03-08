@@ -1,6 +1,8 @@
 import numpy as np
 import os
 from plyfile import PlyData, PlyElement
+from skimage import measure
+import trimesh
 
 def write_ply(points, face_data, filename, text=True):
     points = [(points[i,0], points[i,1], points[i,2]) for i in range(points.shape[0])]
@@ -81,3 +83,32 @@ def writeocc(occ_data,save_path,filename):
     else:
         points = np.concatenate((points,corners),axis=0)
         write_ply(points, faces, os.path.join(save_path,filename))
+
+def save_scene(epoch, outputs, save_path, mode, batch_idx=0):
+    tsdf_volume = outputs['scene_tsdf'][batch_idx].data.cpu().numpy()
+    origin = outputs['origin'][batch_idx].data.cpu().numpy()
+    scene_name = outputs['scene_name'][batch_idx]
+    voxel_size = 0.04
+
+    if (tsdf_volume == 1).all():
+        print('No valid data for scene {}'.format(scene_name))
+    else:
+        # Marching cubes
+        mesh = tsdf2mesh(voxel_size, origin, tsdf_volume)
+        # save tsdf volume for atlas evaluation
+        # data = {'origin': origin,
+        #         'voxel_size': self.cfg.MODEL.VOXEL_SIZE,
+        #         'tsdf': tsdf_volume}
+        filename = str(mode) + '_' + str(epoch) +'_' + scene_name
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+        # np.savez_compressed(
+        #     os.path.join(save_path, '{}.npz'.format(self.scene_name)),
+        #     **data)
+        mesh.export(os.path.join(save_path, '{}.ply'.format(filename)))
+
+def tsdf2mesh(voxel_size, origin, tsdf_vol):
+    verts, faces, norms, vals = measure.marching_cubes(tsdf_vol, level=0)
+    verts = verts * voxel_size + origin  # voxel grid coordinates to world coordinates
+    mesh = trimesh.Trimesh(vertices=verts, faces=faces, vertex_normals=norms)
+    return mesh

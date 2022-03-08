@@ -185,7 +185,7 @@ class RandomTransformSpace(object):
                               [np.sin(r), np.cos(r)]], dtype=torch.float32)
 
             # get corners of bounding volume
-            voxel_dim_old = torch.tensor([64,64,64]) * self.voxel_size
+            voxel_dim_old = torch.tensor(data['tsdf_list_full'][0].shape)* self.voxel_size
             xmin, ymin, zmin = origin
             xmax, ymax, zmax = origin + voxel_dim_old
 
@@ -204,7 +204,7 @@ class RandomTransformSpace(object):
             zmax = zmax
 
             # randomly sample a crop
-            voxel_dim = [64,64,64]
+            voxel_dim = list(data['tsdf_list_full'][0].shape)
             start = torch.Tensor([xmin, ymin, zmin]) - self.padding_start
             end = (-torch.Tensor(voxel_dim) * self.voxel_size +
                    torch.Tensor([xmax, ymax, zmax]) + self.padding_end)
@@ -273,69 +273,69 @@ class RandomTransformSpace(object):
         data['vol_origin_partial'] = vol_origin_partial
 
         # ------get partial tsdf and occupancy ground truth--------
-        # if 'tsdf_list_full' in data.keys():
+        if 'tsdf_list_full' in data.keys():
             # -------------grid coordinates------------------
-            # old_origin = old_origin.view(1, 3)
+            old_origin = old_origin.view(1, 3)
 
-            # x, y, z = self.voxel_dim
-            # coords = coordinates(self.voxel_dim, device=old_origin.device)
-            # world = coords.type(torch.float) * self.voxel_size + vol_origin_partial.view(3, 1)
-            # world = torch.cat((world, torch.ones_like(world[:1])), dim=0)
-            # world = transform[:3, :] @ world
-            # coords = (world - old_origin.T) / self.voxel_size
+            x, y, z = self.voxel_dim
+            coords = coordinates(self.voxel_dim, device=old_origin.device)
+            world = coords.type(torch.float) * self.voxel_size + vol_origin_partial.view(3, 1)
+            world = torch.cat((world, torch.ones_like(world[:1])), dim=0)
+            world = transform[:3, :] @ world
+            coords = (world - old_origin.T) / self.voxel_size
 
-            # data['tsdf_list'] = []
-        data['occ_list'] = []
+            data['tsdf_list'] = []
+            data['occ_list'] = []
 
-        for l in range(3):
-            # ------get partial tsdf and occ-------
-            vol_dim_s = torch.tensor(self.voxel_dim) // 2 ** l
-            tsdf_vol = TSDFVolumeTorch(vol_dim_s, vol_origin_partial,
-                                        voxel_size=self.voxel_size * 2 ** l, margin=3)
-            for i in range(data['imgs'].shape[0]):
-                depth_im = data['depth'][i]
-                cam_intr = data['intrinsics'][i]
-                cam_pose = data['extrinsics'][i]
+            for l, tsdf_s in enumerate(data['tsdf_list_full']):
+                # ------get partial tsdf and occ-------
+                vol_dim_s = torch.tensor(self.voxel_dim) // 2 ** l
+                tsdf_vol = TSDFVolumeTorch(vol_dim_s, vol_origin_partial,
+                                            voxel_size=self.voxel_size * 2 ** l, margin=3)
+                for i in range(data['imgs'].shape[0]):
+                    depth_im = data['depth'][i]
+                    cam_intr = data['intrinsics'][i]
+                    cam_pose = data['extrinsics'][i]
 
-                tsdf_vol.integrate(depth_im, cam_intr, cam_pose, obs_weight=1.)
+                    tsdf_vol.integrate(depth_im, cam_intr, cam_pose, obs_weight=1.)
 
-            tsdf_vol, weight_vol = tsdf_vol.get_volume()
-            occ_vol = torch.zeros_like(tsdf_vol).bool()
-            occ_vol[(tsdf_vol < 0.999) & (tsdf_vol > -0.999) & (weight_vol > 1)] = True
+                tsdf_vol, weight_vol = tsdf_vol.get_volume()
+                occ_vol = torch.zeros_like(tsdf_vol).bool()
+                occ_vol[(tsdf_vol < 0.999) & (tsdf_vol > -0.999) & (weight_vol > 1)] = True
 
-            # # grid sample expects coords in [-1,1]
-            # coords_world_s = coords.view(3, x, y, z)[:, ::2 ** l, ::2 ** l, ::2 ** l] / 2 ** l
-            # dim_s = list(coords_world_s.shape[1:])
-            # coords_world_s = coords_world_s.view(3, -1)
+                # # grid sample expects coords in [-1,1]
+                coords_world_s = coords.view(3, x, y, z)[:, ::2 ** l, ::2 ** l, ::2 ** l] / 2 ** l
+                dim_s = list(coords_world_s.shape[1:])
+                coords_world_s = coords_world_s.view(3, -1)
 
-            # old_voxel_dim = list(tsdf_s.shape)
+                old_voxel_dim = list(tsdf_s.shape)
 
-            # coords_world_s = 2 * coords_world_s / (torch.Tensor(old_voxel_dim) - 1).view(3, 1) - 1
-            # coords_world_s = coords_world_s[[2, 1, 0]].T.view([1] + dim_s + [3])
+                coords_world_s = 2 * coords_world_s / (torch.Tensor(old_voxel_dim) - 1).view(3, 1) - 1
+                coords_world_s = coords_world_s[[2, 1, 0]].T.view([1] + dim_s + [3])
 
-            # # bilinear interpolation near surface,
-            # # no interpolation along -1,1 boundry
-            # tsdf_vol = torch.nn.functional.grid_sample(
-            #     tsdf_s.view([1, 1] + old_voxel_dim),
-            #     coords_world_s, mode='nearest', align_corners=align_corners
-            # ).squeeze()
-            # tsdf_vol_bilin = torch.nn.functional.grid_sample(
-            #     tsdf_s.view([1, 1] + old_voxel_dim), coords_world_s, mode='bilinear',
-            #     align_corners=align_corners
-            # ).squeeze()
-            # mask = tsdf_vol.abs() < 1
-            # tsdf_vol[mask] = tsdf_vol_bilin[mask]
+                # bilinear interpolation near surface,
+                # no interpolation along -1,1 boundry
+                tsdf_vol = torch.nn.functional.grid_sample(
+                    tsdf_s.view([1, 1] + old_voxel_dim),
+                    coords_world_s, mode='nearest', align_corners=align_corners
+                ).squeeze()
+                tsdf_vol_bilin = torch.nn.functional.grid_sample(
+                    tsdf_s.view([1, 1] + old_voxel_dim), coords_world_s, mode='bilinear',
+                    align_corners=align_corners
+                ).squeeze()
+                mask = tsdf_vol.abs() < 1
+                tsdf_vol[mask] = tsdf_vol_bilin[mask]
 
-            # # padding_mode='ones' does not exist for grid_sample so replace
-            # # elements that were on the boarder with 1.
-            # # voxels beyond full volume (prior to croping) should be marked as empty
-            # mask = (coords_world_s.abs() >= 1).squeeze(0).any(3)
-            # tsdf_vol[mask] = 1
+                # padding_mode='ones' does not exist for grid_sample so replace
+                # elements that were on the boarder with 1.
+                # voxels beyond full volume (prior to croping) should be marked as empty
+                mask = (coords_world_s.abs() >= 1).squeeze(0).any(3)
+                tsdf_vol[mask] = 1
 
-            # data['tsdf_list'].append(tsdf_vol)
-            data['occ_list'].append(occ_vol)
-            # data.pop('tsdf_list_full')
-            # data.pop('depth')
+                data['tsdf_list'].append(tsdf_vol)
+                data['occ_list'].append(occ_vol)
+            data.pop('tsdf_list_full')
+            data.pop('depth')
         data.pop('epoch')
         return data
 
