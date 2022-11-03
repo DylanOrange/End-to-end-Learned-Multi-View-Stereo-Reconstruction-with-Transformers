@@ -1,7 +1,15 @@
 
 import open3d as o3d
 import numpy as np
+import argparse
 
+def parse_args():
+    parser = argparse.ArgumentParser(description='Generation of Ground Truth')
+    parser.add_argument("--pred_path", metavar="DIR", help='path to saved results', default='result/tsdf/2000/0000')
+    parser.add_argument("--gt_path", metavar="DIR", help="path to ground truth", default='/mnt/hdd/praktikum/ldy/tsdf_gt')
+    return parser.parse_args()
+
+args = parse_args()
 
 def occ2points(occ, dim):
     points  = []
@@ -92,4 +100,5 @@ def evaluate(pred, gt, threshold=.05, down_sample=.02):
     fscore.append(fscore_sample)
   return np.mean(precision), np.mean(recall), np.mean(fscore)
 
-
+if __name__ == '__main__':
+    precision, recall, fscore = eval_mesh(args.pred_path, args.gt_path)

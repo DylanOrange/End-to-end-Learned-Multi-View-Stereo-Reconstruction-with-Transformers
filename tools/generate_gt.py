@@ -48,11 +48,6 @@ args.save_path = os.path.join(args.save_path, args.save_name)
 
 
 def save_tsdf_full(args, scene_path, cam_intr, depth_list, cam_pose_list, color_list, save_mesh=False):
-    # ======================================================================================================== #
-    # (Optional) This is an example of how to compute the 3D bounds
-    # in world coordinates of the convex hull of all camera view
-    # frustums in the dataset
-    # ======================================================================================================== #
     vol_bnds = np.zeros((3, 2))
 
     n_imgs = len(depth_list.keys())
@@ -69,11 +64,7 @@ def save_tsdf_full(args, scene_path, cam_intr, depth_list, cam_pose_list, color_
         view_frust_pts = get_view_frustum(depth_im, cam_intr, cam_pose)
         vol_bnds[:, 0] = np.minimum(vol_bnds[:, 0], np.amin(view_frust_pts, axis=1))
         vol_bnds[:, 1] = np.maximum(vol_bnds[:, 1], np.amax(view_frust_pts, axis=1))
-    # ======================================================================================================== #
 
-    # ======================================================================================================== #
-    # Integrate
-    # ======================================================================================================== #
     # Initialize voxel volume
     print("Initializing voxel volume...")
     tsdf_vol_list = []
@@ -228,14 +219,12 @@ def process_with_single_worker(args, scannet_files):
         save_tsdf_full(args, scene, cam_intr, depth_all, cam_pose_all, color_all, save_mesh=False)
         # save_fragment_pkl(args, scene, cam_intr, depth_all, cam_pose_all)
 
-
 def split_list(_list, n):
     assert len(_list) >= n
     ret = [[] for _ in range(n)]
     for idx, item in enumerate(_list):
         ret[idx % n].append(item)
     return ret
-
 
 def generate_pkl(args):
     allscene_path = '/mnt/hdd/praktikum/ldy/tsdf_gt/all_tsdf_10'

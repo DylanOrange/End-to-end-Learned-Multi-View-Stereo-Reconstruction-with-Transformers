@@ -1,0 +1,18 @@
+name: mvs
+channels:
+  - pytorch
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.7.9
+  - pytorch=1.6.0
+  - torchvision=0.7.0
+  - cudatoolkit=10.2
+  - ipython
+  - tqdm
+  - numba
+  - sparsehash
+  - pip
+  - pip:
+    - -r requirements.txt
+    - git+https://github.com/mit-han-lab/torchsparse.git@v1.4.0
